@@ -1,0 +1,4 @@
+extracted_at,insurer,snapshot_file,quote_status,notes,quote_reference,policy_start_date,comprehensive_annual_eur,third_party_fire_theft_annual_eur,third_party_only_annual_eur,pay_in_full_savings_eur,ncb_discount_eur,online_discount_eur,government_levy_eur,quote_valid_today,session_minutes_left
+2026-03-25T22:26:42.003Z,123.ie,page-2026-03-25T22-23-16-645Z.yml,,,,,946.83,823.71,,281.12,236.71,105.21,36.42,yes,53
+2026-03-25T23:04:42.186Z,redclick.ie,page-2026-03-25T23-04-42-029Z.yml,,,WB0003190873,20/04/2026,806.33,753.8,739.41,,,,,,
+2026-03-26T23:47:59.090Z,aig.ie,page-2026-03-26T23-47-52-818Z.yml,no_quote_online,Unable to provide an online quotation; contact AIG via livechat,46034784720,,,,,,,,,,
