@@ -1,0 +1,8 @@
+vehicle: 2019 Toyota Corolla, reg: 191D12345, purchased Dec 2019, value €18,500
+use: Social, Pleasure & Commuting | mileage: 15000 | cover start: 01/06/2026
+licence: Full Irish, 5 years held, no penalty points, no convictions
+ncb: 4, no claims last 2 years
+driver: Mr Sean Murphy, dob 15/03/1988, Software Engineer
+address: 14 Oak Avenue, Blackrock, Dublin, A94 XY12
+phone: 087 123 4567 | email: sean.murphy@example.com
+no additional drivers
