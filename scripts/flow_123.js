@@ -1,16 +1,31 @@
-(async () => {
+async (page) => {
   const waitFor = (sel) => page.waitForSelector(sel, { timeout: 20000 });
   const clickText = (text) => page.getByText(text, { exact: true }).click();
   const clickContains = (text) => page.getByText(text).first().click();
-  const clickNext = () => page.getByRole('button', { name: /^Next$/ }).first().click();
+  const clickNext = () => page.getByRole('button', { name: /next/i }).first().click();
   const pause = (ms = 500) => page.waitForTimeout(ms);
 
-  const accept = page.getByRole('button', { name: /accept|allow all/i });
+  if (!page.url().includes('123.ie')) {
+    await page.goto('https://www.123.ie/insurance/car/#/search-reg', { waitUntil: 'domcontentloaded' });
+  }
+
+  const accept = page.getByRole('button', { name: /accept all/i });
   if (await accept.count()) await accept.first().click();
+  await pause(600);
+
+  // Select Car Insurance product if on the product selector page
+  const carInsBtn = page.getByText('Car Insurance', { exact: true });
+  if (await carInsBtn.count()) {
+    await carInsBtn.click();
+    await page.getByRole('button', { name: /next/i }).first().click();
+    await pause(600);
+  }
 
   await waitFor('input[placeholder*="231D000"]');
   await page.fill('input[placeholder*="231D000"]', '09D29410');
   await page.getByRole('button', { name: /Find my car/i }).click();
+  await page.waitForSelector('text=/found|vehicle details|purchase date/i', { timeout: 20000 }).catch(() => {});
+  await pause(800);
   await clickNext();
 
   await waitFor('input[placeholder="Select a date"]');
@@ -30,11 +45,11 @@
   await waitFor('input[placeholder="Select a date"]');
   await page.locator('input[placeholder="Select a date"]').click();
   for (let i = 0; i < 12; i += 1) {
-    if (await page.getByText(/APRIL 2026/i).count()) break;
+    if (await page.getByText(/JUNE 2026/i).count()) break;
     await page.getByRole('button', { name: /Next month/i }).click();
     await pause(200);
   }
-  await page.getByRole('button', { name: '20, April 2026' }).click();
+  await page.getByRole('button', { name: '20, June 2026' }).click();
   await clickNext();
 
   await clickContains('Driving history');
@@ -96,4 +111,5 @@
     await page.getByText('I accept the Disclosure Requirements').click().catch(() => {});
   }
   await page.getByRole('button', { name: /Next: Get your price/i }).click();
-})();
+  await page.waitForURL(/quote-summary|view-your-quote|review-your-quote|get-your-price/, { timeout: 60000 })
+}

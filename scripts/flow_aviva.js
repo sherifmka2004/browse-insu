@@ -179,7 +179,7 @@ async (page) => {
   await chooseRadio(/additional drivers/i, /no/i);
   await pause(400);
 
-  await fillTextbox(/start date/i, "20/04/2026");
+  await fillTextbox(/start date/i, "20/06/2026");
   await clickContinue();
 
   await page.waitForURL(/quote-your-address/, { timeout });

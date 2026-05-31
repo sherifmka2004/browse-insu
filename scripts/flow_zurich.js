@@ -24,16 +24,19 @@ async (page) => {
       dob: "09/04/1987",
       addressSearch: "44 Churchfield Park, Ashbourne, Meath, A84A726",
       employmentStatus: "Housewife / Househusband",
-      occupation: "Home Maker",
+      occupation: "Housewife",
     },
     driving: {
       licenceType: "Full Irish",
       licenceHeld: "2 Years",
       ncdYears: "3 Years",
+      currentInsurer: "Aviva",
+      policyExpiryDate: "01/06/2026",
+      namedExperienceOnOtherVehicle: false,
       claimsCount: "0 Claims",
     },
     policy: {
-      startDate: "20/04/2026",
+      startDate: "20/06/2026",
     },
   };
 
@@ -118,15 +121,22 @@ async (page) => {
     const input = page.locator("#sk-input-Motor-Customer-Occupation");
     await input.waitFor({ state: "visible", timeout: 30000 });
     await input.scrollIntoViewIfNeeded();
-    // Triple-click to select any existing text, then type the query
-    await input.click({ clickCount: 3, force: true });
-    await input.pressSequentially(query, { delay: 120 });
-    await wait(2500); // give autocomplete time to fetch results
+    await input.click({ force: true });
+    await wait(300);
+    await input.press("Control+A");
+    await wait(100);
+    await input.fill("");
+    await wait(200);
+    for (const char of query) {
+      await input.press(char);
+      await wait(150);
+    }
+    await wait(5000); // give autocomplete time to fetch results
 
-    const option = page.getByRole("option", { name: optionText, exact: true });
+    const option = page.locator("li, [role='option']").filter({ hasText: new RegExp(`^${optionText}$`) }).first();
     await option.waitFor({ state: "visible", timeout: 15000 });
     await option.click({ force: true });
-    await wait(300);
+    await wait(500);
   }
 
   async function searchAddress(addressText) {
@@ -227,7 +237,7 @@ async (page) => {
     optionText: data.proposer.employmentStatus,
   });
 
-  await selectOccupation(data.proposer.occupation, "home");
+  await selectOccupation(data.proposer.occupation, "house");
 
   await selectReactOption({
     rootSelector: "#sk-Motor-MainDriver-LicenseType",
@@ -252,6 +262,21 @@ async (page) => {
     query: "3",
     optionText: data.driving.ncdYears,
   });
+
+  await selectReactOption({
+    rootSelector: "#sk-Motor-Customer-CurrentInsurer",
+    inputSelector: "#sk-input-sk-Motor-Customer-CurrentInsurer",
+    query: data.driving.currentInsurer.slice(0, 3),
+    optionText: data.driving.currentInsurer,
+  });
+
+  await fillById("Motor-Customer-ExpiryDateOfCurrentPolicy", data.driving.policyExpiryDate);
+
+  await setChecked(
+    data.driving.namedExperienceOnOtherVehicle
+      ? "#Motor-Customer-ExperienceOnAnotherVehicle-1-radio"
+      : "#Motor-Customer-ExperienceOnAnotherVehicle-2-radio"
+  );
 
   await selectReactOption({
     rootSelector: "#sk-Motor-Claims-TotalNumberOfClaims",
