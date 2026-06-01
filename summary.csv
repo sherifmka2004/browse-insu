@@ -3,3 +3,6 @@ extracted_at,insurer,snapshot_file,quote_status,notes,quote_reference,policy_sta
 2026-03-25T23:04:42.186Z,redclick.ie,page-2026-03-25T23-04-42-029Z.yml,,,WB0003190873,20/04/2026,806.33,753.8,739.41,,,,,,
 2026-03-26T23:47:59.090Z,aig.ie,page-2026-03-26T23-47-52-818Z.yml,no_quote_online,Unable to provide an online quotation; contact AIG via livechat,46034784720,,,,,,,,,,
 2026-05-31T23:08:36.247Z,zurich.ie,zurich_quote.yml,priced,,Q-PC-0003157813,,713.12,663.86,,,,,,,
+2026-06-01T01:24:10.720Z,redclick.ie,redclick_quote.yml,priced,,WB0003310378,20/06/2026,852.52,800.35,788.11,,,,,,
+2026-06-01T01:50:23Z,aviva.ie,aviva_quote.yml,priced,,35586522636,20/06/2026,725.16,580.12,,,,,,,
+2026-06-01T01:59:59.640Z,aig.ie,aig_quote.yml,no_quote_online,Unable to provide an online quotation; contact AIG via livechat,47340735848,,,,,,,,,,

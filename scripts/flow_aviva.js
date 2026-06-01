@@ -1,233 +1,183 @@
+// Aviva Ireland car insurance quote flow (accordion/single-page design).
+//
+// Executed by playwright-cli as:
+//   playwright-cli run-code "$(cat scripts/flow_aviva.js)"
+
 async (page) => {
   const timeout = 30000;
+  const pause = (ms = 400) => page.waitForTimeout(ms);
 
-  const pause = (ms = 300) => page.waitForTimeout(ms);
+  const data = {
+    proposer: {
+      title: "Mrs",
+      firstName: "Hagar",
+      lastName: "Nofal",
+      email: "sherifmka2004@hotmail.com",
+      phone: "0877181948",
+      dob: "09/04/1987",
+      eircode: "A84A726",
+      addressLine: "44 Churchfield Park",
+      town: "Ashbourne",
+      county: "Meath",
+    },
+    driving: {
+      employmentStatus: "H",   // Household Duties
+      licenceType: "F",        // Full Irish
+      licenceYears: "2",
+      drivingExperience: "1",  // Insured in own name in Ireland/UK
+      ncdYears: "3",
+      commuting: "Yes",
+      advancedCourse: "No",
+    },
+    vehicle: {
+      reg: "09D29410",
+      valueBand: "75000",      // Less than €75,000
+      modified: "No",
+    },
+    policy: {
+      startDate: "20/06/2026",
+    },
+  };
 
-  async function clickSafe(locator, clickTimeout = timeout) {
-    const target = locator.first();
-    await target.waitFor({ state: "visible", timeout: clickTimeout });
-    try {
-      await target.click({ timeout: clickTimeout });
-    } catch {
-      await target.click({ timeout: clickTimeout, force: true });
-    }
+  async function setSelect(id, val) {
+    await page.evaluate(([id, val]) => {
+      const s = document.getElementById(id);
+      if (!s) return;
+      s.value = val;
+      s.dispatchEvent(new Event("change", { bubbles: true }));
+    }, [id, val]);
   }
 
-  async function clickButton(name) {
-    await clickSafe(page.getByRole("button", { name }));
+  async function setInput(id, val) {
+    await page.evaluate(([id, val]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = val;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, [id, val]);
   }
 
-  async function clickLink(name) {
-    await clickSafe(page.getByRole("link", { name }));
+  async function clickPostback(controlId) {
+    await page.evaluate((id) => {
+      const link = document.querySelector(`a[href*="${id}"]`);
+      if (link) { link.click(); return; }
+      const el = document.getElementById(id);
+      if (el) el.click();
+    }, controlId);
   }
 
   async function clickContinue() {
-    await clickSafe(page.getByRole("button", { name: /continue/i }).last());
+    // Always pick the one visible Continue button in the currently-open accordion section
+    const btn = page.getByRole("button", { name: /continue/i }).last();
+    await btn.waitFor({ state: "visible", timeout });
+    await btn.click({ force: true });
+    await pause(2500);
   }
 
-  async function fillTextbox(name, value) {
-    const input = page.getByRole("textbox", { name }).first();
-    await input.waitFor({ state: "visible", timeout });
-    await input.fill(String(value));
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  if (!/insurance\.aviva\.ie/.test(page.url())) {
+    await page.goto("https://www.aviva.ie/", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /accept all cookies/i }).first().click({ force: true }).catch(() => {});
+    await page.getByRole("link", { name: /get a quote for car insurance/i }).first().click();
+    await page.waitForURL(/insurance\.aviva\.ie/, { timeout });
   }
+  await page.getByRole("button", { name: /accept all cookies/i }).first().click({ force: true }).catch(() => {});
 
-  async function typeLikeUser(name, value) {
-    const input = page.getByRole("textbox", { name }).first();
-    await input.waitFor({ state: "visible", timeout });
-    await input.click({ force: true });
-    await input.press("Meta+A").catch(async () => {
-      await input.press("Control+A");
-    });
-    await input.type(String(value), { delay: 35 });
-    await input.blur();
-  }
-
-  async function chooseRadio(question, answer) {
-    const section = page.getByRole("heading", { name: question }).first().locator("xpath=..");
-    const sectionRadio = section.getByRole("radio", { name: answer }).first();
-    if (await sectionRadio.count()) {
-      try {
-        await sectionRadio.check({ force: true });
-        return;
-      } catch {}
-      try {
-        await sectionRadio.click({ force: true });
-        return;
-      } catch {}
-    }
-
-    const globalRadio = page.getByRole("radio", { name: answer }).first();
-    if (await globalRadio.count()) {
-      try {
-        await globalRadio.check({ force: true });
-        return;
-      } catch {}
-      try {
-        await globalRadio.click({ force: true });
-        return;
-      } catch {}
-    }
-
-    try {
-      await clickSafe(section.getByText(answer).first());
-    } catch {
-      await clickSafe(page.getByText(answer).first());
-    }
-  }
-
-  async function clickSectionButton(question, buttonName) {
-    await page.getByRole("heading", { name: question }).first().waitFor({ timeout });
-    await clickSafe(page.getByRole("button", { name: buttonName }).first());
-  }
-
-  async function visibleOrFirst(locator) {
-    const count = await locator.count();
-    for (let i = 0; i < count; i += 1) {
-      const candidate = locator.nth(i);
-      if (await candidate.isVisible().catch(() => false)) {
-        return candidate;
-      }
-    }
-    return locator.first();
-  }
-
-  async function pickOccupation() {
-    const occ = page.getByRole("textbox", { name: /type an occupation/i }).first();
-    await occ.waitFor({ state: "visible", timeout });
-    await occ.click({ force: true });
-    await occ.fill("");
-    await occ.type("house", { delay: 50 });
-    await pause(700);
-
-    const housewife = page.getByText(/^Housewife$/).first();
-    if (await housewife.count()) {
-      await clickSafe(housewife);
-      return;
-    }
-
-    const housekeeper = page.getByText(/^Housekeeper$/).first();
-    if (await housekeeper.count()) {
-      await clickSafe(housekeeper);
-      return;
-    }
-
-    const firstOption = page.locator("li, [role='option']").first();
-    if (await firstOption.count()) {
-      await clickSafe(firstOption);
-    }
-  }
-
-  if (!/insurance\.aviva\.ie.*CreateNewQuote/.test(page.url())) {
-    await page.goto("https://insurance.aviva.ie/products/Car/CreateNewQuote.aspx?enc=NUic3N57azQgnbRz7sSkmB2yiwSz8k1TVn8SwmhjvnqqGezVsAHUF97jCZCPKJva", { waitUntil: "domcontentloaded" });
-  }
-
-  await clickButton(/accept all cookies/i).catch(() => {});
-
-  if (/Get Started|Start your quote/i.test(page.textContent() || "")) {
-    await clickButton(/get started|start your quote/i);
-  }
-
-  await page.waitForURL(/quote-your-details|quote-details/, { timeout });
-  await fillTextbox(/first name/i, "Hagar");
-  await fillTextbox(/last name/i, "Nofal");
-  await fillTextbox(/date of birth/i, "09/04/1987");
-  await typeLikeUser(/phone number/i, "0877181948");
-  await fillTextbox(/^email address$/i, "sherifmka2004@hotmail.com");
-  await fillTextbox(/confirm email address/i, "sherifmka2004@hotmail.com");
-  await pickOccupation();
+  // ── Section 1: About you ────────────────────────────────────────────────────
+  await page.waitForURL(/quote-your-details/, { timeout });
+  await page.locator("#DDLProposerTitle").selectOption({ label: data.proposer.title });
+  await page.getByRole("textbox", { name: /first name/i }).first().fill(data.proposer.firstName);
+  await page.getByRole("textbox", { name: /surname/i }).first().fill(data.proposer.lastName);
+  await page.getByRole("textbox", { name: /email address/i }).first().fill(data.proposer.email);
+  await page.getByRole("textbox", { name: /mobile number/i }).first().fill(data.proposer.phone);
   await clickContinue();
 
-  await page.waitForURL(/quote-your-car/, { timeout });
-  await fillTextbox(/car registration number/i, "09D29410");
-  await clickButton(/find my car/i);
-
-  await page.getByRole("heading", { name: /is this your car\?/i }).first().waitFor({ timeout });
-  await chooseRadio(/standard right hand drive/i, /yes/i);
-  await clickButton(/continue/i);
-
-  await page.waitForURL(/quote-your-driving-history/, { timeout });
-
-  const fullIrishRadio = await visibleOrFirst(page.getByRole("radio", { name: /full irish/i }));
-  await fullIrishRadio.waitFor({ state: "attached", timeout });
-  await fullIrishRadio.check({ force: true });
-  await pause(250);
-  if (!(await page.getByLabel(/driving licence years/i).count())) {
-    await clickSafe(fullIrishRadio.locator("xpath=.."));
+  // ── Section 2: Personal details ─────────────────────────────────────────────
+  // Address eircode search
+  const addrBox = page.getByRole("textbox", { name: /address or eircode/i }).first();
+  await addrBox.waitFor({ state: "visible", timeout });
+  await addrBox.pressSequentially(data.proposer.eircode, { delay: 80 });
+  await pause(2000);
+  // Click suggestion if it appears, otherwise confirm via postback
+  const suggestionText = page.getByText(data.proposer.addressLine, { exact: false }).first();
+  if (await suggestionText.count()) {
+    await suggestionText.click({ force: true });
   }
-  await page.getByLabel(/driving licence years/i).selectOption("2 years");
-  await page
-    .getByRole("heading", { name: /type of insurance have you had most recently/i })
-    .first()
-    .waitFor({ timeout });
-
-  const ownNameRadio = await visibleOrFirst(
-    page.getByRole("radio", { name: /insured in my own name/i })
-  );
-  await ownNameRadio.waitFor({ state: "attached", timeout });
-  await ownNameRadio.check({ force: true });
-  await pause(250);
-  if (!(await page.getByLabel(/years with no claims discount/i).count())) {
-    await clickSafe(ownNameRadio.locator("xpath=.."));
+  await pause(800);
+  // Confirm address via ASP.NET postback if confirmation link is present
+  const confirmLink = page.locator('a[href*="btnConfirmAddress"]').first();
+  if (await confirmLink.count()) {
+    await confirmLink.click({ force: true });
+    await pause(2000);
   }
-
-  await page.getByLabel(/years with no claims discount/i).selectOption("3 years");
-  await chooseRadio(/penalty points or convictions/i, /no/i);
+  // Fill remaining personal detail fields by ID
+  await setInput("ProposerDOB", data.proposer.dob);
+  await setSelect("EmploymentStatus", data.driving.employmentStatus);
+  await setSelect("LicenceType", data.driving.licenceType);
   await pause(300);
-  await chooseRadio(/accident or claim/i, /no/i);
-  await pause(300);
-
-  await chooseRadio(/additional drivers/i, /no/i);
-  await pause(400);
-
-  await fillTextbox(/start date/i, "20/06/2026");
+  await setSelect("LicenceYearsHeld", data.driving.licenceYears);
+  await setSelect("ddlDrivingExperience", data.driving.drivingExperience);
+  await setSelect("ddlCounty", data.proposer.county);
   await clickContinue();
 
-  await page.waitForURL(/quote-your-address/, { timeout });
-
-  const hasManualAddressFields = await page.getByRole("textbox", { name: /address line 1/i }).count();
-  if (!hasManualAddressFields) {
-    const cantFindAddress = page.getByText(/can't find your address/i).first();
-    if (await cantFindAddress.count()) {
-      await clickSafe(cantFindAddress.locator("xpath=.."));
-    }
-    const enterManually = page.getByText(/enter manually/i).first();
-    if (await enterManually.count()) {
-      await clickSafe(enterManually);
-    }
-  }
-
-  await fillTextbox(/address line 1/i, "44 Churchfield Park");
-  await fillTextbox(/town or city/i, "Ashbourne");
-  await page.getByRole("combobox", { name: /county/i }).first().selectOption("County Meath");
-  await fillTextbox(/eircode/i, "A84A726");
-
-  const postalCheckbox = page.getByRole("checkbox", { name: /also my postal address/i }).first();
-  if (await postalCheckbox.count()) {
-    if (!(await postalCheckbox.isChecked())) {
-      await postalCheckbox.check({ force: true });
-    }
-  }
-
+  // ── Section 3: Insurance details ────────────────────────────────────────────
+  await setSelect("ddlYearsNCB", data.driving.ncdYears);
+  await page.locator(`[name="IsCommuting"][value="${data.driving.commuting}"]`).click({ force: true }).catch(() => {});
+  await page.locator('[name="IsCourses"][value="1"]').click({ force: true }).catch(() => {}); // No advanced course
   await clickContinue();
 
-  await page.waitForURL(/quote-your-cover/, { timeout });
+  // ── Section 4: Car details ───────────────────────────────────────────────────
+  await page.locator('[name="DoYouKnowReg"][value="Yes"]').click({ force: true });
+  await pause(800);
+  const regInput = page.getByRole("textbox", { name: /car registration/i }).first();
+  await regInput.fill(data.vehicle.reg);
+  await page.getByRole("button", { name: /find car/i }).click({ force: true });
+  await page.getByRole("heading", { name: new RegExp(data.vehicle.reg.toUpperCase()) }).first().waitFor({ timeout });
+  // Confirm the car
+  await page.locator('a[href*="btnConfirmReg"]').click({ force: true });
+  await page.getByRole("heading", { name: /car successfully added/i }).first().waitFor({ timeout });
+  await setSelect("VehicleCurrentValue", data.vehicle.valueBand);
+  await page.locator(`[name="IsModified"][value="${data.vehicle.modified}"]`).click({ force: true });
+  await clickContinue();
 
-  const comprehensiveRadio = await visibleOrFirst(
-    page.getByRole("radio", { name: /comprehensive/i })
+  // ── Section 5: Additional drivers ───────────────────────────────────────────
+  await page.locator('[name="IsAdditionalDriver"][value="No"]').first().click({ force: true });
+  await clickContinue();
+
+  // ── Section 6: Claims ────────────────────────────────────────────────────────
+  const claimsRadio = page.locator('[name*="IsClaims"][value="No"], [id*="IsClaims"][value="No"]').first();
+  await claimsRadio.click({ force: true }).catch(() =>
+    page.getByRole("radio", { name: "No" }).first().click({ force: true })
   );
-  await comprehensiveRadio.waitFor({ state: "attached", timeout });
-  await comprehensiveRadio.check({ force: true });
   await clickContinue();
 
-  await page.waitForURL(/quote-your-terms/, { timeout });
-  const termsCheckbox = page.getByRole("checkbox", { name: /accepted the terms/i }).first();
-  if (await termsCheckbox.count()) {
-    if (!(await termsCheckbox.isChecked())) {
-      await termsCheckbox.check({ force: true });
-    }
-  }
+  // ── Section 7: Penalty points ────────────────────────────────────────────────
+  const penaltyRadio = page.locator('[name*="IsPenalty"][value="No"], [name*="PenaltyPoints"][value="No"]').first();
+  await penaltyRadio.click({ force: true }).catch(() =>
+    page.getByRole("radio", { name: "No" }).first().click({ force: true })
+  );
+  await page.locator("#Continue7").click({ force: true });
+  await pause(2500);
 
-  await clickButton(/get my price/i);
-  await page.waitForURL(/quote-summary|view-your-quote|review-your-quote/, { timeout: 60000 });
-  await page.getByRole("heading", { name: /your quote|your price|review your quote/i }).first().waitFor({ timeout: 60000 });
+  // ── Section 8: Cover start date ──────────────────────────────────────────────
+  const startDateInput = page.locator("#ctl00_MainContent_StartDate");
+  await startDateInput.waitFor({ state: "visible", timeout });
+  await startDateInput.click({ force: true });
+  await startDateInput.fill("");
+  await startDateInput.pressSequentially(data.policy.startDate, { delay: 60 });
+  await startDateInput.press("Tab");
+  await pause(600);
+  // Answer the optional radio groups
+  for (const [name, value] of [["IsHome", "No"], ["IsHouseholdCar", "No"], ["RecieveOffers", "No"], ["CallConsent", "Yes"]]) {
+    await page.locator(`[name="${name}"][value="${value}"]`).first().click({ force: true }).catch(() => {});
+    await pause(150);
+  }
+  // Accept terms checkbox
+  await page.getByRole("checkbox", { name: /agree/i }).first().check({ force: true });
+  await pause(300);
+  // Submit
+  await page.locator("#ctl00_MainContent_Continue8").click({ force: true });
+  await page.waitForURL(/your-quote/, { timeout: 60000 });
+  await page.getByRole("heading", { name: /€\d|your quote/i }).first().waitFor({ timeout: 30000 });
 }

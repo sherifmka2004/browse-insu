@@ -20,7 +20,7 @@ $PW snapshot
 COMP_SNAPSHOT="$(ls -1t .playwright-cli/page-*.yml | head -n 1)"
 
 if rg -q 'unable to provide an online quotation|Quotation Result|No Quote' "$COMP_SNAPSHOT"; then
-  POLICY_START_DATE="20/04/2026" \
+  POLICY_START_DATE="20/06/2026" \
     node scripts/append_quote_summary.mjs "$COMP_SNAPSHOT" "aig.ie" "summary.csv"
   exit 0
 fi
@@ -58,5 +58,5 @@ echo "AIG TPFT recalculation completed."
 $PW snapshot
 TPFT_SNAPSHOT="$(ls -1t .playwright-cli/page-*.yml | head -n 1)"
 
-POLICY_START_DATE="20/04/2026" \
+POLICY_START_DATE="20/06/2026" \
   node scripts/append_quote_summary.mjs "${COMP_SNAPSHOT},${TPFT_SNAPSHOT}" "aig.ie" "summary.csv"

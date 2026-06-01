@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Aviva Car Insurance Automation Script
-# Usage: ./flow_aviva.sh
+PW="npx --yes --package @playwright/cli playwright-cli --session aviva"
 
-echo "Starting Aviva Car Insurance automation..."
+$PW open "https://www.aviva.ie/" --headed
 
-# Run the Node.js automation script
-node -r esbuild-register -r ts-node/register -r tsx/register -r ts-node/esm -r tsx/esm -r ./node_modules/esbuild-register/dist/node-loader.js --loader tsx,ts,tsx,mjs,cjs,mjs flow_aviva.js
+npx --yes --package @playwright/cli playwright-cli --session aviva run-code "$(cat scripts/flow_aviva.js)"
 
-echo "Aviva Car Insurance automation completed."
+$PW snapshot
+LATEST_SNAPSHOT="$(ls -1t .playwright-cli/page-*.yml | head -n 1)"
+node scripts/append_quote_summary.mjs "$LATEST_SNAPSHOT" "aviva.ie" "summary.csv"

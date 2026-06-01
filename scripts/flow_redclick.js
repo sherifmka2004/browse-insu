@@ -197,7 +197,7 @@ async (page) => {
     await partnerNoRadio.check({ force: true }).catch(() => {});
   }
 
-  await fillTextbox(/start date/i, "20/04/2026");
+  await fillTextbox(/start date/i, "20/06/2026");
   await clickContinue();
 
   await page.waitForURL(/questions\/about-you/, { timeout });

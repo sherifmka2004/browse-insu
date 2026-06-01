@@ -229,52 +229,51 @@ Every flow script defines local async helper functions. The pattern is consisten
 ### Per-insurer flow details
 
 #### `flow_123.js`
-- Uses `(async () => { ... })()` (IIFE, unlike the others which use a plain `async (page) =>`)
+- Uses `async (page) =>` expression
+- **Bot protection**: Visits homepage first to warm up session, then navigates to quote form. Throws `Error` if PerimeterX `#px-captcha-modal` is present — user must solve the "click and hold" challenge manually before re-running.
 - Selector-driven: fills inputs by `placeholder` attribute
-- Date picker for cover start: navigates calendar months, clicks exact date button (e.g. `"20, April 2026"`)
+- Date picker for cover start: navigates calendar months, clicks exact date button (e.g. `"20, June 2026"`)
 - Address: Eircode autocomplete, then clicks the first matching suggestion text
 - Stops at the "Get your price" pricing page
 
 #### `flow_aviva.js`
 - Uses `async (page) =>` expression
-- Navigate to `insurance.aviva.ie/products/Car/CreateNewQuote.aspx`
-- URL-based page transitions: `waitForURL(/quote-your-details|...)` after each continue
-- Occupation: type `"house"` into autocomplete, pick "Housewife" / "Housekeeper" / first option
-- Address: tries address search first; if no fields appear, falls back to manual entry (`"Can't find your address"` → `"Enter manually"`)
-- Cover type: selects "Comprehensive" radio
-- Terms: checks terms checkbox before submitting
-- Stops at `quote-summary` / `view-your-quote` URL
+- **New design (2026)**: Aviva redesigned their quote form as a single-page accordion (ASP.NET WebForms). The old multi-step URL-based flow no longer works.
+- Navigation: `https://www.aviva.ie/` → click "Get a quote for car insurance" → lands on `quote-your-details`
+- 8 accordion sections filled in sequence: About you → Personal details → Insurance details → Car details → Additional drivers → Claims → Penalty points → Cover start date
+- Address: Eircode autocomplete (Aviva generic search box) + ASP.NET `btnConfirmAddress` postback
+- Car lookup: fills reg → "Find car" button → `btnConfirmReg` postback to confirm the 2009 Audi A4
+- ASP.NET validators must pass before the final `#ctl00_MainContent_Continue8` submit button becomes active; the 4 optional radio groups (`IsHome`, `IsHouseholdCar`, `RecieveOffers`, `CallConsent`) must be clicked via Playwright (DOM manipulation alone doesn't trigger validator state)
+- Stops at `your-quote` URL showing `heading "€NNN.NN" [level=1]` for the selected cover type
 
 #### `flow_aig.js`
 - Uses `async (page) =>` expression
-- Navigate to `www-417.aig.ie/brands/aigdirect/motor/createnewquote.aspx`
+- Navigate to `www-417.aig.ie/brands/aigdirect/motor/createnewquote.aspx` (the `enc=` parameter is a static referral code, not a session token — it doesn't expire)
+- **Must run on a fresh session** — the ASP.NET accordion doesn't auto-expand sections 2–8 if a previous session's state is cached. Use a new `--session aig2` style name for each clean run.
 - Handles **two** cookie banners: AIG marketing banner and TrustArc `#truste-consent-required`
 - Bot detection: if "Are you a robot / CAPTCHA" text appears, throws with a message requiring manual intervention
 - 8-step accordion form; each step has a numbered continue button (`#ctl00_Main_Continue1` … `#ctl00_Main_btnContinue9`)
-- Address: tries Eircode lookup first; if it fails, clicks "Cannot find address" and uses the manual form (Address 1, Address 2, County dropdown, Sub Area dropdown, Postcode)
+- Address: step 2 accordion must auto-expand after Continue1; falls back to `#AddressSearch` selector if `getByRole` doesn't find it; then Eircode lookup with "Cannot find address" fallback to manual form
 - Uses `page.evaluate()` to dispatch events on hidden/frozen radio inputs
-- Supports an optional promo code (`AIG10`)
-- Stops at `quoteplus.aspx` or `noquote.aspx`
+- Promo code `AIG10` is pre-applied via URL parameter
+- Stops at `quoteplus.aspx` (priced) or `noquote.aspx` (no online quote available for this profile)
 
 #### `flow_redclick.js`
 - Uses `async (page) =>` expression
-- Navigate to `redclick.ie`
-- Similar structure to Aviva: role/label selectors, bot detection check
-- Address search with Eircode fallback to manual entry
-- Stops at the final plan selection / pricing page
+- Navigate to `redclick.ie/car-insurance` → click "Get a quote" link → enters `carquotes.redclick.ie`
+- Bot detection: throws `Error` if "Are you a robot?" appears
+- Role/label selectors throughout; `visibleOrFirst()` helper for multiple matching radios
+- Address: Eircode/address search with `"Can't find your address"` / `"Enter manually"` fallback
+- Stops at `modular-product-selection/select-package` pricing page
 
 #### `flow_zurich.js`
 - Uses `async (page) =>` expression
-- Navigate to `quote.zurich.ie`
-- Single-page React app — form does not navigate between URLs
-- Uses `selectReactOption({ rootSelector, inputSelector, query, optionText })` for React-select dropdowns
-- Uses `fillById(id, value)` for standard inputs identified by their HTML `id`
-- Uses `setChecked(selector)` which tries `check({ force: true })` then falls back to `page.evaluate()` dispatching DOM events
-- reCAPTCHA detection: attempts to click the iframe checkbox before submission
-- `clickNext()` uses `page.evaluate()` to find and click the "Next" button by visible text, throws with diagnostics if not found
-- After submission, waits for `#Motor-Vehicle-VehicleRegistrationNumber` to become hidden (confirms page transition)
-- Handles optional "Declarations" page between form submission and pricing page
-- Stops when `document.body.innerText` contains both "Comprehensive", "third party", and a `€NNN.NN` price pattern
+- Navigate to `quote.zurich.ie` — single-page React app, no URL changes between form steps
+- Missing fields vs original design (now required): `Motor-Customer-CurrentInsurer` (React-select), `Motor-Customer-ExpiryDateOfCurrentPolicy` (text), `Motor-Customer-ExperienceOnAnotherVehicle` (radio)
+- Occupation: typed character-by-character with 5s autocomplete wait; uses `locator("li, [role='option']").filter({ hasText: regex })` (not `getByRole("option")` — nested listbox structure)
+- reCAPTCHA: clicks `iframe[title*="reCAPTCHA"]` checkbox before submission
+- Declarations page: appears between form submission and pricing; requires "Yes" radio + "Get an Initial Quote" button
+- Stops when pricing page shows comprehensive and TPFT prices with `€NNN.NN` pattern
 
 ### Anti-bot and overlay handling rules
 
@@ -306,10 +305,13 @@ If insurer is `"auto"` or `"detect"`, the script inspects the snapshot text for 
 
 | Signature | Detected as |
 |---|---|
-| `Select a plan to get started` / `Quote reference:` | `redclick.ie` |
+| `Select a plan to get started` / `carquotes.redclick.ie` / `WB[0-9]{10}` | `redclick.ie` |
 | `Government Levy:` / `No Claims Bonus:` / `123.ie` | `123.ie` |
 | `AIG Deluxe` / `AIG Direct` / `Quote Reference: <8+ digits>` | `aig.ie` |
 | `Q-PC-\d+` / `quote.zurich.ie` / `ZurichDirect` | `zurich.ie` |
+| `insurance.aviva.ie` / `Your Quote Reference.*aviva` | `aviva.ie` |
+
+> The old Redclick signature `Quote reference:` was removed because it falsely matched the Aviva snapshot (which also contains "Your Quote Reference:").
 
 ### CSV schema
 
@@ -338,19 +340,19 @@ Every row has these columns:
 
 ## Supported Insurers – Implementation Status
 
-| InsurerKey | Aliases | Flow script | Mapping selectors | Extraction |
-|---|---|---|---|---|
-| `123` | `123` | ✅ `flow_123.js` | ✅ full selectors | ✅ `extract123()` |
-| `aviva` | `aviva` | ✅ `flow_aviva.js` | ⬜ labels only | ⬜ not implemented |
-| `redclick` | `redclick` | ✅ `flow_redclick.js` | ⬜ labels only | ✅ `extractRedclick()` |
-| `zurich` | `zurich`, `zurick` | ✅ `flow_zurich.js` | ⬜ labels only | ✅ `extractZurich()` |
-| `aa` | `aa` | ⬜ not started | ⬜ labels only | ⬜ not implemented |
-| `chill` | `chill`, `chill insurance` | ⬜ not started | ⬜ labels only | ⬜ not implemented |
-| `supervalu` | `supervalu` | ⬜ not started | ⬜ labels only | ⬜ not implemented |
-| `anpost` | `anpost`, `an post` | ⬜ not started | ⬜ labels only | ⬜ not implemented |
-| `allianz` | `allianz` | ⬜ not started | ⬜ labels only | ⬜ not implemented |
+| InsurerKey | Aliases | Flow script | Mapping selectors | Extraction | Notes |
+|---|---|---|---|---|---|
+| `123` | `123` | ✅ `flow_123.js` | ✅ full selectors | ✅ `extract123()` | PerimeterX CAPTCHA blocks fresh sessions; warm up browser manually once |
+| `aviva` | `aviva` | ✅ `flow_aviva.js` | ⬜ labels only | ✅ `extractAviva()` | Redesigned 2026; single-page ASP.NET accordion; 2 snapshots needed for TPFT price |
+| `redclick` | `redclick` | ✅ `flow_redclick.js` | ⬜ labels only | ✅ `extractRedclick()` | |
+| `zurich` | `zurich`, `zurick` | ✅ `flow_zurich.js` | ⬜ labels only | ✅ `extractZurich()` | Requires 3 extra fields: current insurer, policy expiry, named driving experience |
+| `aa` | `aa` | ⬜ not started | ⬜ labels only | ⬜ not implemented | |
+| `chill` | `chill`, `chill insurance` | ⬜ not started | ⬜ labels only | ⬜ not implemented | |
+| `supervalu` | `supervalu` | ⬜ not started | ⬜ labels only | ⬜ not implemented | |
+| `anpost` | `anpost`, `an post` | ⬜ not started | ⬜ labels only | ⬜ not implemented | |
+| `allianz` | `allianz` | ⬜ not started | ⬜ labels only | ⬜ not implemented | |
 
-> AIG (`aig`) is implemented in `flow_aig.js` and `extractAig()` but does **not** have an `InsurerKey` entry in `types.ts` or a mapping entry — it is driven entirely by the flow script.
+> AIG (`aig`) is implemented in `flow_aig.js` and `extractAig()` but does **not** have an `InsurerKey` entry in `types.ts` or a mapping entry — it is driven entirely by the flow script. AIG returns `noquote.aspx` for some profiles (e.g. newer drivers with < 2 years licence); this is handled as `status: no_quote_online`.
 
 ---
 

@@ -58,8 +58,49 @@ function normalizeInsurer(insurer) {
     if (/Q-PC-\d+|quote\.zurich\.ie|ZurichDirect/i.test(raw)) {
       return "zurich.ie";
     }
+    if (/insurance\.aviva\.ie|Your Quote Reference.*aviva|Aviva car insurance/i.test(raw)) {
+      return "aviva.ie";
+    }
   }
   return normalized;
+}
+
+function extractAviva() {
+  const quoteRef = pick(/Your Quote Reference:\s*([0-9]+)/i) || pick(/(35[0-9]{9,})/);
+  const policyStart = pick(/valid until\s*([0-9]{2}\/[0-9]{2}\/[0-9]{4})/i) || "";
+  // Prices appear as heading "€NNN.NN" — comprehensive is typically shown first
+  const allPrices = [];
+  const priceRe = /heading "€\s*([\d,]+\.\d{2})"/gi;
+  let m;
+  while ((m = priceRe.exec(raw)) !== null) {
+    allPrices.push(toNumber(m[1]));
+  }
+  // If multiple snapshots: first snapshot = comprehensive selected, second = TPFT selected.
+  // The level=1 heading is the selected plan's pay-in-full price.
+  const compRaw = raws[0] ?? "";
+  const tpftRaw = raws[1] ?? compRaw;
+  // level=1 heading = the currently-selected plan's pay-in-full price
+  const compAnnual = toNumber((compRaw.match(/heading "€\s*([\d,]+\.\d{2})" \[level=1\]/i) || [])[1] || "") ||
+    allPrices[0] || toNumber(pick(/Comprehensive[\s\S]{0,200}?€\s*([\d,]+\.\d{2})/i));
+  // TPFT price only available when a second snapshot (with TPFT selected) is passed
+  const tpftAnnual = raws.length > 1
+    ? toNumber((tpftRaw.match(/heading "€\s*([\d,]+\.\d{2})" \[level=1\]/i) || [])[1] || "")
+    : "";
+  return {
+    quoteStatus: compAnnual ? "priced" : "unknown",
+    notes: "",
+    quoteReference: quoteRef,
+    policyStartDate: policyStart,
+    comprehensiveAnnual: compAnnual,
+    tpftAnnual: tpftAnnual || "",
+    tpoAnnual: "",
+    payInFullSavings: "",
+    ncbDiscountAmount: "",
+    onlineDiscountAmount: "",
+    governmentLevy: "",
+    minutesLeft: "",
+    quoteValidToday: "",
+  };
 }
 
 function extract123() {
@@ -221,15 +262,18 @@ function extractZurich() {
 
 const insurer = normalizeInsurer(insurerInput);
 const isRedclick =
-  /redclick/.test(insurer) || /Select a plan to get started|Quote reference:/i.test(raw);
+  /redclick/.test(insurer) || /Select a plan to get started|carquotes\.redclick\.ie|WB[0-9]{10}/i.test(raw);
 const isAig = /aig(\.ie)?/.test(insurer) || /AIG Deluxe|AIG Direct/i.test(raw);
 const isZurich = /zurich/.test(insurer) || /Q-PC-\d+.*quote\.zurich|ZurichDirect/i.test(raw);
+const isAviva = /aviva/.test(insurer) || /insurance\.aviva\.ie|Your Quote Reference.*aviva/i.test(raw);
 const extracted = isZurich
   ? extractZurich()
   : isAig
   ? extractAig()
   : isRedclick
   ? extractRedclick()
+  : isAviva
+  ? extractAviva()
   : extract123();
 
 const snapshotBase = snapshotPaths.map((p) => path.basename(p)).join(",");
@@ -397,6 +441,16 @@ const summaryLines = isZurich
       `Comprehensive: €${extracted.comprehensiveAnnual || "n/a"} / Pay in full`,
       `Third Party Fire and Theft: €${extracted.tpftAnnual || "n/a"} / Pay in full`,
       `Third Party Only: €${extracted.tpoAnnual || "n/a"} / Pay in full`,
+      `Appended to: ${csvPath}`,
+    ]
+  : isAviva
+  ? [
+      `${insurer} quote summary`,
+      `Status: ${extracted.quoteStatus || "n/a"}`,
+      `Quote reference: ${extracted.quoteReference || "n/a"}`,
+      `Policy start date: ${(extracted.policyStartDate || policyStartDateFallback) || "n/a"}`,
+      `Comprehensive: €${extracted.comprehensiveAnnual || "n/a"} / year (pass 2 snapshots for TPFT)`,
+      `Third Party Fire and Theft: €${extracted.tpftAnnual || "n/a"} / year`,
       `Appended to: ${csvPath}`,
     ]
   : [

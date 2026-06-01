@@ -102,7 +102,7 @@ export function parseUserText(input: string, parsedAt: Date = new Date()): Parse
 
 function parseVehicleLine(line: string, data: CanonicalData, warnings: string[]) {
   const afterLabel = line.split(/vehicle:/i)[1] ?? "";
-  const parts = afterLabel.split(",").map((part) => normalizeWhitespace(part));
+  const parts = smartSplit(afterLabel);
 
   const firstPart = parts[0] ?? "";
   const regMatch = firstPart.match(/reg:\s*([a-z0-9]+)/i) ?? line.match(/reg:\s*([a-z0-9]+)/i);
@@ -138,6 +138,39 @@ function parseVehicleLine(line: string, data: CanonicalData, warnings: string[])
       if (money !== undefined) data.vehicle.estimated_value_eur = money;
     }
   }
+}
+
+function smartSplit(input: string): string[] {
+  const results: string[] = [];
+  let current = "";
+  let inNumber = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (char === ",") {
+      const nextChar = input[i + 1];
+      if (inNumber && nextChar && /\d/.test(nextChar)) {
+        current += char;
+      } else {
+        results.push(normalizeWhitespace(current));
+        current = "";
+        inNumber = false;
+      }
+    } else {
+      if (/\d/.test(char) && (current.match(/[€£$,\s]$/))) {
+        inNumber = true;
+      } else if (!/[\d\s]/.test(char) && char !== ",") {
+        inNumber = false;
+      }
+      current += char;
+    }
+  }
+
+  if (current.trim()) {
+    results.push(normalizeWhitespace(current));
+  }
+
+  return results;
 }
 
 function parsePolicyLine(line: string, data: CanonicalData, warnings: string[]) {

@@ -31,7 +31,7 @@ async (page) => {
       },
     },
     policy: {
-      startDate: { day: "20", month: "Apr", year: "2026" },
+      startDate: { day: "20", month: "Jun", year: "2026" },
       promoCode: "AIG10",
     },
     insuranceHistory: {
@@ -207,12 +207,19 @@ async (page) => {
   await maybeFailOnBotChallenge();
 
   // Step 2: Your Information
-  await page
-    .getByRole("textbox", { name: /Start typing address or Eircode/i })
-    .first()
-    .waitFor({ state: "visible", timeout: 30000 });
+  // On a fresh session the accordion auto-expands; on a stale session click the heading to expand.
+  const step2Heading = page.getByRole("heading", { name: /2\.\s*Your Information/i }).first();
+  if (await step2Heading.count()) {
+    await step2Heading.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  // The address search input: try getByRole first (works on fresh sessions), then fall back to #AddressSearch.
+  let eircodeBox = page.getByRole("textbox", { name: /Start typing address or Eircode/i }).first();
+  if (!(await eircodeBox.isVisible().catch(() => false))) {
+    eircodeBox = page.locator("#AddressSearch, #AddressSearchManual").first();
+  }
+  await eircodeBox.waitFor({ state: "visible", timeout: 30000 });
   // Address/Eircode: attempt lookup, but we fall back to manual entry when needed.
-  const eircodeBox = page.getByRole("textbox", { name: /Start typing address or Eircode/i }).first();
   await eircodeBox.fill(data.proposer.address.eircode);
   await page.waitForTimeout(600);
   // Try clicking the first suggestion if it appears.

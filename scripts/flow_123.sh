@@ -41,9 +41,10 @@ $PW run-code "await page.getByRole('button',{name:/next/i}).first().click()"
 
 # Cover start date
 $PW run-code "await page.locator('input[placeholder=\\\"Select a date\\\"]').click()"
-$PW run-code "await page.getByRole('button',{name:'20, April 2026'}).click().catch(()=>{})"
 $PW run-code "await page.getByRole('button',{name:/Next month/i}).click().catch(()=>{})"
-$PW run-code "await page.getByRole('button',{name:'20, April 2026'}).click()"
+$PW run-code "await page.getByRole('button',{name:'20, June 2026'}).click().catch(()=>{})"
+$PW run-code "await page.getByRole('button',{name:/Next month/i}).click().catch(()=>{})"
+$PW run-code "await page.getByRole('button',{name:'20, June 2026'}).click()"
 $PW run-code "await page.getByRole('button',{name:/next/i}).first().click()"
 
 # Transition to driving history (best-effort)

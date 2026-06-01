@@ -5,20 +5,43 @@ async (page) => {
   const clickNext = () => page.getByRole('button', { name: /next/i }).first().click();
   const pause = (ms = 500) => page.waitForTimeout(ms);
 
-  if (!page.url().includes('123.ie')) {
+  // Warm up session: visit homepage to improve bot score, then navigate to quote
+  const currentUrl = page.url();
+  if (!currentUrl.includes('123.ie') || currentUrl === 'about:blank') {
+    await page.goto('https://www.123.ie/', { waitUntil: 'domcontentloaded' });
+    await pause(1500);
+    await page.mouse.move(300, 400, { steps: 8 });
+    await pause(500);
+    await page.mouse.move(600, 250, { steps: 8 });
+    await pause(800);
+  }
+
+  // Always navigate to the car insurance quote entry point
+  if (!/insurance\/car|#\/search-reg|#\/select-product|#\/vehicle/.test(page.url())) {
     await page.goto('https://www.123.ie/insurance/car/#/search-reg', { waitUntil: 'domcontentloaded' });
   }
 
   const accept = page.getByRole('button', { name: /accept all/i });
   if (await accept.count()) await accept.first().click();
-  await pause(600);
+  await pause(800);
+
+  // Check for PerimeterX CAPTCHA — requires human interaction if present
+  const captcha = page.locator('#px-captcha-modal');
+  if (await captcha.isVisible().catch(() => false)) {
+    throw new Error(
+      "PerimeterX bot challenge on 123.ie. Open the browser session manually, complete the 'click and hold' challenge, then re-run the flow."
+    );
+  }
 
   // Select Car Insurance product if on the product selector page
-  const carInsBtn = page.getByText('Car Insurance', { exact: true });
-  if (await carInsBtn.count()) {
-    await carInsBtn.click();
+  if (/select-product/.test(page.url())) {
+    await page.locator('.product-card__title, [data-product="car"], .product-card').filter({ hasText: 'Car Insurance' }).first().click();
+    await pause(400);
+    if (await captcha.isVisible().catch(() => false)) {
+      throw new Error("PerimeterX challenge appeared after product selection. Complete it manually and re-run.");
+    }
     await page.getByRole('button', { name: /next/i }).first().click();
-    await pause(600);
+    await pause(800);
   }
 
   await waitFor('input[placeholder*="231D000"]');
